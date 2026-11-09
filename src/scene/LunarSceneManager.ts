@@ -531,6 +531,16 @@ export class LunarSceneManager {
 
         this.scienceLabMesh = model;
         this.subsystemNodes.set(SubsystemType.SCIENCE_LAB, model);
+
+        // Generous invisible click volume so tapping anywhere on, inside the hollow arch, or near the Science Lab reliably registers
+        const clickHitVolume = new THREE.Mesh(
+          new THREE.BoxGeometry(3.6, 3.4, 3.6),
+          new THREE.MeshBasicMaterial({ visible: false })
+        );
+        clickHitVolume.position.set(0, 1.2, 0);
+        clickHitVolume.userData = { subsystemType: SubsystemType.SCIENCE_LAB };
+        model.add(clickHitVolume);
+
         this.outpostGroup.add(model);
         this.initScienceLaser();
         this.initScienceBeacon();
@@ -1048,6 +1058,21 @@ export class LunarSceneManager {
           return;
         }
         current = current.parent;
+      }
+    }
+
+    // Proximity fallback: check if tap ray hit terrain ground near any module (especially Science Lab at (6, 0, 6))
+    const terrainIntersects = this.raycaster.intersectObjects(this.terrainGroup.children, true);
+    if (terrainIntersects.length > 0) {
+      const hitPoint = terrainIntersects[0].point;
+      for (const [type, node] of this.subsystemNodes.entries()) {
+        const dist = Math.hypot(hitPoint.x - node.position.x, hitPoint.z - node.position.z);
+        const threshold = type === SubsystemType.SCIENCE_LAB ? 4.2 : 3.0;
+        if (dist <= threshold) {
+          this.selectSubsystem(type);
+          this.callbacks.onSubsystemClick(type);
+          return;
+        }
       }
     }
   };
